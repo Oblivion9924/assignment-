@@ -1,0 +1,79 @@
+# from model.PreProcessing.getvalue import vehiclereadin
+# from model.PreProcessing.getvalue import linereadin
+# from model.PreProcessing.getvalue import drivingreadin
+from math import floor
+from math import ceil
+
+import numpy as np
+# from scipy.interpolate import interp1d
+
+
+class TrainModel:
+    def __init__(self, vehicle, line, driving):
+        self.vehicle = vehicle
+        self.line = line
+        self.driving = driving
+        self.tractionForceTable = vehicle["tractionForceTable"]
+        self.brakingForceTable = vehicle["brakingForceTable"]
+        self.vehicleStaticMass = vehicle["vehicleStaticMass"]
+        self.vehicleRotatingMass = vehicle["vehicleRotatingMass"]
+        self.maxSpeed = vehicle["maxSpeed"]
+        self.gradTable = line["gradTable"]
+        self.resistance_A = vehicle["resistance_A"]
+        self.resistance_B = vehicle["resistance_B"]
+        self.resistance_C = vehicle["resistance_C"]
+
+    def train_acc(self):
+
+        # set initial v as 0 , get train mass, ABC of resistance and calc
+        # for loop (over the range of 360 secs)
+        a_theo = []
+        v = [0]
+        p = [0]
+
+        for s in range(1, 360):
+            total_resistance = (self.resistance_A * self.vehicleStaticMass) + (self.resistance_B * v[s-1]) + \
+                               (self.resistance_C * (v[s-1] * v[s-1]))
+            print(total_resistance)
+            # return total_resistance
+            # tractionForce = find current index of current velocity, choose resp force & use this single value as Tractionforce
+            # it will give us only
+            # indexing and locating the traction force with respect to velocity
+            tractionforce = self.tractionForceTable.iloc[:, [0, 1]]
+            if s == 1:
+                print(self.tractionForceTable.index[0])
+                new_trac_force = self.tractionForceTable.loc[self.tractionForceTable.index[0], 1]
+                print(new_trac_force)
+
+            else:
+                new_floor_trac_force = self.tractionForceTable.loc[self.tractionForceTable.index[floor(v[s - 1])], 1]
+                new_ceil_trac_force = self.tractionForceTable.loc[self.tractionForceTable.index[ceil(v[s - 1])], 1]
+
+            interpolate = np.interp((v[s-1]), [floor(v[s - 1]), ceil(v[s - 1])], [new_floor_trac_force,
+                                                                                      new_ceil_trac_force])
+            print(interpolate)
+
+            a_theo.append((interpolate - total_resistance) / (self.vehicleStaticMass + self.vehicleRotatingMass))
+            if a_theo[-1] < 1.2:
+                print("a_theo value is less than allowable acceleration")
+            else:
+                a_theo[-1] = 1.2
+                print("a_theo value is maximum")
+            if s > 1:
+                a_jerk = a_theo[s] - a_theo[s-1]
+                if a_jerk < 1:
+                    print("a_theo value is less than allowable jerk")
+                else:
+                    a_jerk = 1
+                    a_theo[s] = a_jerk + a_theo[s-1]
+                v = (s - (s-1)) * ((a_theo[s - 1] + a_theo[s]) / 2) + (v[s-1])
+                p = (s - (s-1)) * ((v[s-1] + v[s])/2) + (p[s-1])
+        return p, v, a_theo
+
+
+
+
+
+
+
+
